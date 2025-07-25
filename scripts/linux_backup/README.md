@@ -56,15 +56,6 @@ Copy this script to the root directory where you want to store your hosts' backu
    ```
 3. Setup a cron job to run your backup
    ```
-      *  *  *  *  *  command
-      │  │  │  │  │
-      │  │  │  │  └─ Day of week (0–7)  (0 or 7 = Sunday)
-      │  │  │  └──── Month (1–12)
-      │  │  └─────── Day of month (1–31)
-      │  └────────── Hour (0–23)
-      └───────────── Minute (0–59)
-
-      myUser@hostname:/disk01/backups $ sudo crontab -e
       #Every Day at 3am
       0 3 * * * /disk01/backups/backup_host.py
    ```
