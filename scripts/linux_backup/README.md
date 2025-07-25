@@ -10,6 +10,7 @@ This repository contains scripts for `backup` and `restore` operations for Linux
 
 ### Restore Script - restore_host.sh:
 
+   **DISCLAIMER** This recovery script has not been used yet. Only testing done was for the menu.
    This bash script performs a full restore of a Linux system using `rsync`, from all files backed up, while providing menu options to navigate to the correct backup, dry-running the process, followed by a transfer of files to the new host. 
 
 ## Features
@@ -24,11 +25,13 @@ This repository contains scripts for `backup` and `restore` operations for Linux
 
 Before using the script, modify the following variables to fit your system:
 
+- **`DEBUG`**: If True - Prints file paths to `BACKUP_BASE`, if False - Prints start/stop times for backups to log.
 - **`BACKUP_BASE`**: The base directory where backups will be stored (e.g., `/disk01/backups`).
 - **`EXCLUDES`**: List of directories and files to exclude from the backup.
 - **`RETENTION_DAYS`**: Number of days to retain backups. Older backups will be automatically deleted.
 
-Copy this script to the root directory where you want to store your hosts' backups. It is assumed that this will be saved to an off-host location meaning NFS mount or other type of share. 
+Run this script from wherever you want, so long as you use absolute paths in the configuration.
+It is assumed that this will be saved to an off-host location meaning NFS mount or other type of share. 
 
 ### Example Backup Tree
 
