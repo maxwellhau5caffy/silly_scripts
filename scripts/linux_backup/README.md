@@ -1,14 +1,16 @@
 # Linux Backup and Restore Scripts
 
-This repository contains scripts for **backup** and **restore** operations for Linux systems. The scripts use **rsync** for backups and utilize **cron** for an automated backup process that can also be invoked manually. Due to permissions in the root filesystems, elevated permissions are necessary to run these scripts. 
+This repository contains scripts for `backup` and `restore` operations for Linux systems. The scripts use `rsync` for backups and utilize `cron` for an automated backup process that can also be invoked manually. Due to permissions in the root filesystems, elevated permissions are necessary to run these scripts. 
 
 ## Scripts Overview
 
 ### Backup Script - backup_host.py:
-   This Python script performs a full backup of a Linux system using **rsync**, while excluding certain directories and files.
+
+   This Python script performs a full backup of a Linux system using `rsync`, while excluding certain directories and files.
 
 ### Restore Script - restore_host.sh:
-   This bash script performs a full restore of a Linux system using **rsync*, from all files backed up, while providing menu options to navigate to the correct backup, dry-running the process, followed by a transfer of files to the new host. 
+
+   This bash script performs a full restore of a Linux system using `rsync`, from all files backed up, while providing menu options to navigate to the correct backup, dry-running the process, followed by a transfer of files to the new host. 
 
 ## Features
 
