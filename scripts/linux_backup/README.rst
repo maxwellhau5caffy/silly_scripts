@@ -1,29 +1,32 @@
-Linux Backup and Restore Scripts
-================================
+# Linux Backup and Restore Scripts
 
-This repository contains scripts for **backup** and **restore** operations for Linux systems. The scripts use **rsync** for backups and allow for an interactive restore process.
+This repository contains scripts for **backup** and **restore** operations for Linux systems. The scripts use **rsync** for backups and utilize **cron** for an automated backup process that can also be invoked manually.
 
-Scripts Overview
-================
+## Scripts Overview
 
-1. **`backup_host.py`**: Backup Script
---------------------------------------
+### backup_host.py: Backup Script
 
-This Python script performs a full backup of a Linux system using **rsync**, while excluding certain directories and files. The script:
+This Python script performs a full backup of a Linux system using **rsync**, while excluding certain directories and files.
+
+**Features:**
 - Excludes system directories like `/proc`, `/tmp`, and `/var/cache`.
-- Assumes backup directory is an NFS mount and excludes the entire root dir
+- Assumes backup directory is an NFS mount and excludes the entire root mount.
 - Backs up the root directory (`/`) to a backup folder in `/disk01/backups/{hostname}/{hostname}-{date}`.
-- Logs the backup process and purges backups older than a configured retention period (default: 7 days).
+- Logs the backup process.
+- Automatically purges backups older than a configured retention period (default: 7 days).
 
-### Configuration
+## Configuration
 
 Before using the script, modify the following variables to fit your system:
-- Copy this script to the root directory where you want to store your hosts backups
+
 - **`BACKUP_BASE`**: The base directory where backups will be stored (e.g., `/disk01/backups`).
 - **`EXCLUDES`**: List of directories and files to exclude from the backup.
 - **`RETENTION_DAYS`**: Number of days to retain backups. Older backups will be automatically deleted.
 
-Example backup tree
+Copy this script to the root directory where you want to store your hosts' backups.
+
+## Example Backup Tree
+
 ```bash
 myUser@hostname:/disk01/backups $ tree -L 2
 .
@@ -37,7 +40,6 @@ myUser@hostname:/disk01/backups $ tree -L 2
 └── restore_node.sh
 
 7 directories, 2 files
-
 
 ### Usage
 
