@@ -1,30 +1,91 @@
 #!/usr/bin/env python3
-import os
-import re
-import subprocess
-import datetime
-import logging
+import os, sys, re, subprocess, datetime, logging
 from pathlib import Path
 
 # === CONFIGURATION ===
+RETENTION_DAYS = 7
+DEBUG=False
 BACKUP_ROOT_DIR = "/disk01"
 BACKUP_BASE = f"{BACKUP_ROOT_DIR}/backups"
-EXCLUDES = [f"{BACKUP_ROOT_DIR}",  #This could be an NFS mount so skip the whole thing
-            "/proc/*",
-            "/sys/*",
-            "/dev/*",
-            "/run/*",
-            "/mnt/*",
-            "/media/*",
-            "/lost+found",
-            "/tmp/*",
-            "/var/tmp/*",
-            "/swapfile",
-            "/afs",
-            "/var/cache/*",
-            "/var/log/*",
-            "/home/*/.cache"]
-RETENTION_DAYS = 7
+# EXCLUDES = [f"{BACKUP_ROOT_DIR}",  #This could be an NFS mount so skip the whole thing
+#             "/proc/*",
+#             "/sys/*",
+#             "/dev/*",
+#             "/run/*",
+#             "/mnt/*",
+#             "/media/*",
+#             "/lost+found",
+#             "/tmp/*",
+#             "/var/tmp/*",
+#             "/swapfile",
+#             "/afs",
+#             "/var/cache/*",
+#             "/var/log/*",
+#             "/home/*/.cache",
+#             "/home/*/.vscode-server/*"]
+
+BACKUP_ROOT_DIR = "/disk01"
+BACKUP_BASE = f"{BACKUP_ROOT_DIR}/backups"
+EXCLUDES = [
+    f"{BACKUP_ROOT_DIR}",             # Could be an NFS mount, skip entire root
+    #Ignore entire root dirs which some are 
+    "/bin/",
+    "/lib/",
+    "/lib64/",
+    "/sbin/",
+    "/proc/*",
+    "/sys/*",
+    "/dev/*",
+    "/run/*",
+    "/mnt/*",
+    "/media/*",
+    "/lost+found",
+    "/tmp/*",
+    "/var/tmp/*",
+    "/swapfile",
+    "/afs",
+    "/var/cache/*",
+    "/var/log/*",
+
+    # User-level cache and temp data
+    "/home/*/.cache",
+    "/home/*/.vscode-server/*",
+    "/home/*/.local/share/Trash/*",
+    "/home/*/.npm/*",
+    "/home/*/.cargo/registry/*",
+    "/home/*/.gradle/*",
+    "/home/*/.cache/*",
+    "/home/*/.config/discord/*",
+    "/home/*/.config/Slack/*",
+    "/home/*/.config/spotify/*",
+    "/home/*/.config/Code/CachedData/*",
+    "/home/*/.config/Code/Service Worker/CacheStorage/*",
+    "/home/*/.config/Code/User/workspaceStorage/*",
+    "/home/*/.mozilla/*",
+    "/home/*/.var/app/*",           # Flatpak apps
+    "/home/*/.steam/*",
+    "/home/*/.wine/*",
+    "/home/*/Downloads/*",
+    "/home/*/Videos/*",
+    "/home/*/Music/*",
+    "/home/*/Pictures/*",
+    "/home/*/Games/*",
+    "/home/*/.thumbnails/*",
+    "/home/*/.cache/thumbnails/*",
+
+    #/usr/ ignores
+    "/usr/share/doc/*",             # Documentation (reinstallable)
+    "/usr/share/man/*",             # Man pages (reinstallable)
+    "/usr/share/info/*",            # GNU info docs (reinstallable)
+    "/usr/share/locale/*",          # Translations/localizations (reinstallable)
+    "/usr/share/icons/*",           # Icons for DEs (large and non-critical)
+    "/usr/share/backgrounds/*",     # Desktop wallpapers, themes
+    "/usr/share/fonts/*",           # Fonts (you can reinstall these)
+    "/usr/lib/debug/*",             # Debug symbols
+    "/usr/lib/modules/*",           # Kernel modules (useful only if restoring full system)
+    "/usr/lib/firmware/*",          # Firmware blobs (can be huge)
+    "/usr/src/*",                   # Kernel headers/sources
+]
 
 # === LOGGING SETUP ===
 hostname = os.uname().nodename
@@ -56,32 +117,45 @@ def run_backup():
 
     try:
         process = subprocess.Popen(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        last_path_line = "" #Needed for figuring out duplicate file paths to log file
+        
+        #Reserve lines for the console
+        NUM_LINES=3
+        print("\n"*NUM_LINES)
+
+        #rsync Log Line Types
+        progress_line=""
+        rsync_path_line=""
+        last_rsync_path_line=""
+        error_line=""
         for line in process.stdout:
-            #Clean prints to console for manual output and progress
-            print("\r"+(" "*180), end='', flush=True) #clean the previous line out
-            print(f"\r{line.strip()}", end='', flush=True)  # Live console status for manual runs
+            #Examples:
+            #  35,243,536   0%  223.03kB/s    0:02:34 (xfr#80, ir-chk=1002/82824)
+            #  /usr/path/file.something
+            line = line.strip()
+            
+            #Crude filepath check
+            split_line = line.split("/")
 
-            #Log to file logic ----- Purpose:
-            # Limit logs to directories, not files
-            # Distinguish between info and error logs
-            if ("Bad Message" in line or "Error" in line):
-                logging.error(line.strip())
-            else:
-                joined_lines = ""
-                split_lines = line.split("/")
-                if ("xfr#" in split_lines[:]): #This is likely a status log. omit from the logfile
-                    pass
-                #If its a filepath, log it
-                #Skip dunder files like __init__ or __pycache_
-                elif "." in split_lines[-1] or \
-                    (split_lines[-1].startswith("__") and 
-                     split_lines[-1].endswith("__")): 
+            # Categorize and update line content first
+            if "kB/s" in line or "MB/s" in line or "xfr#" in line:
+                progress_line = line
+            elif "." in split_line[-1]: #check the last index if it has a file extension.
+                rsync_path_line = line
+                if DEBUG and (line not in last_rsync_path_line):#Only log new lines to logfile
+                    last_rsync_path_line = line
+                    logging.debug(f"/{line}")
+            elif "Error" in line or "Bad Message" in line:
+                error_line = line
 
-                    joined_lines = "/".join(split_lines[:-1]) #bring it back together, minus the last split with the filename
-                    if(last_path_line != joined_lines): #make sure we havent printed this directory already. This assumes rsync doesnt bounce around and does things sequentially
-                        logging.info(f"/{joined_lines}")
-                        last_path_line = joined_lines
+            # Move cursor up NUM_LINES
+            sys.stdout.write(f'\033[{NUM_LINES}F')  # Move up to start of reserved area
+
+            # Print each line, clearing the previous content. !!MUST MATCH NUM_LINES!!
+            sys.stdout.write('\033[K' + progress_line + '\n')  # Clear + write progress line
+            sys.stdout.write('\033[K' + rsync_path_line + '\n')  # Clear + write path line
+            sys.stdout.write('\033[K' + error_line + '\n')  # Clear + write path line
+
+            sys.stdout.flush()
 
         process.wait()
 
