@@ -43,6 +43,7 @@ Copy this script to the root directory where you want to store your hosts' backu
    └── restore_node.sh
 
    7 directories, 2 files
+```
 
 ## Usage:
 
@@ -50,11 +51,13 @@ Copy this script to the root directory where you want to store your hosts' backu
 2. Make the script executable:
    ```
       chmod +x backup_host.py
+   ```
 3. Setup a cron job to run your backup
    ```
       #Every Day at 3am
       0 3 * * * /disk01/backups/backup_host.py
-
+   ```
 4. Or run manually
-    ```
+   ```
        cd /disk01/backups; sudo python backup_hosts.py;
+   ```
