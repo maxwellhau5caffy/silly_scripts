@@ -7,8 +7,9 @@ import logging
 from pathlib import Path
 
 # === CONFIGURATION ===
-BACKUP_BASE = "/disk01/backups"
-EXCLUDES = ["/disk01/*",
+BACKUP_ROOT_DIR = "/disk01"
+BACKUP_BASE = f"{BACKUP_ROOT_DIR}/backups"
+EXCLUDES = [f"{BACKUP_ROOT_DIR}",  #This could be an NFS mount so skip the whole thing
             "/proc/*",
             "/sys/*",
             "/dev/*",
@@ -116,6 +117,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
