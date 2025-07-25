@@ -30,13 +30,21 @@ Copy this script to the root directory where you want to store your hosts' backu
 ```bash
 myUser@hostname:/disk01/backups $ tree -L 2
 .
+
 ├── backup_host.py
+
 ├── hostname
+
 │   └── hostname-2025-07-25
+
 ├── hostname2
+
 │   └── hostname2-2025-07-25
+
 ├── hostname3
+
 │   └── hostname3-2025-07-25
+
 └── restore_node.sh
 
 7 directories, 2 files
@@ -45,12 +53,15 @@ myUser@hostname:/disk01/backups $ tree -L 2
 
 1. Ensure Python 3 is installed.
 2. Make the script executable:
+
    ```bash
    chmod +x backup_host.py
 3. Setup a cron job to run your backup
+
    ```bash
    #Every Day at 3am
    0 3 * * * /disk01/backups/backup_host.py
+
 4. Or run manually
    ```bash
    cd /disk01/backups; sudo python backup_hosts.py;
