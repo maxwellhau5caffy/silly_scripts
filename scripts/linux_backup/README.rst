@@ -28,26 +28,18 @@ Copy this script to the root directory where you want to store your hosts' backu
 ## Example Backup Tree
 
 ```bash
-myUser@hostname:/disk01/backups $ tree -L 2
-.
+   myUser@hostname:/disk01/backups $ tree -L 2
+   .
+   ├── backup_host.py
+   ├── hostname
+   │   └── hostname-2025-07-25
+   ├── hostname2
+   │   └── hostname2-2025-07-25
+   ├── hostname3
+   │   └── hostname3-2025-07-25
+   └── restore_node.sh
 
-├── backup_host.py
-
-├── hostname
-
-│   └── hostname-2025-07-25
-
-├── hostname2
-
-│   └── hostname2-2025-07-25
-
-├── hostname3
-
-│   └── hostname3-2025-07-25
-
-└── restore_node.sh
-
-7 directories, 2 files
+   7 directories, 2 files
 
 ### Usage
 
