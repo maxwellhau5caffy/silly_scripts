@@ -1,21 +1,23 @@
-# Linux Backup and Restore Scripts
+:Linux Backup and Restore Scripts:
 
-This repository contains scripts for **backup** and **restore** operations for Linux systems. The scripts use **rsync** for backups and utilize **cron** for an automated backup process that can also be invoked manually.
+ This repository contains scripts for **backup** and **restore** operations for Linux systems. The scripts use **rsync** for backups and utilize **cron** for an automated backup process that can also be invoked manually. Due to permissions in the root filesystems, elevated permissions are necessary to run these scripts. 
 
-## Scripts Overview
+:Scripts Overview:
 
-### backup_host.py: Backup Script
+  :Backup Script - backup_host.py:
+    This Python script performs a full backup of a Linux system using **rsync**, while excluding certain directories and files.
+  :Restore Script - restore_host.sh:
+    This bash script performs a full restore of a Linux system using **rsync*, from all files backed up, while providing menu options to navigate to the correct backup, dry-running the process, followed by a transfer of files to the new host. 
 
-This Python script performs a full backup of a Linux system using **rsync**, while excluding certain directories and files.
+:Features:
 
-**Features:**
 - Excludes system directories like `/proc`, `/tmp`, and `/var/cache`.
 - Assumes backup directory is an NFS mount and excludes the entire root mount.
 - Backs up the root directory (`/`) to a backup folder in `/disk01/backups/{hostname}/{hostname}-{date}`.
 - Logs the backup process.
 - Automatically purges backups older than a configured retention period (default: 7 days).
 
-## Configuration
+:Configuration:
 
 Before using the script, modify the following variables to fit your system:
 
@@ -23,9 +25,9 @@ Before using the script, modify the following variables to fit your system:
 - **`EXCLUDES`**: List of directories and files to exclude from the backup.
 - **`RETENTION_DAYS`**: Number of days to retain backups. Older backups will be automatically deleted.
 
-Copy this script to the root directory where you want to store your hosts' backups.
+ Copy this script to the root directory where you want to store your hosts' backups. It is assumed that this will be saved to an off-host location meaning NFS mount or other type of share. 
 
-## Example Backup Tree
+:Example Backup Tree:
 
 .. code-block:: bash
 
@@ -42,7 +44,7 @@ Copy this script to the root directory where you want to store your hosts' backu
 
    7 directories, 2 files
 
-### Usage
+:Usage:
 
 1. Ensure Python 3 is installed.
 2. Make the script executable:
