@@ -11,6 +11,7 @@ This repository contains scripts for `backup` and `restore` operations for Linux
 ### Restore Script - restore_host.sh:
 
    **DISCLAIMER** This recovery script has not been used yet. Only testing done was for the menu.
+   
    This bash script performs a full restore of a Linux system using `rsync`, from all files backed up, while providing menu options to navigate to the correct backup, dry-running the process, followed by a transfer of files to the new host. 
 
 ## Features

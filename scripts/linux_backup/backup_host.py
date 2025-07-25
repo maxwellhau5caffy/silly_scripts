@@ -1,29 +1,16 @@
 #!/usr/bin/env python3
-import os, sys, re, subprocess, datetime, logging
+import os, sys, subprocess, datetime, logging
 from pathlib import Path
+
+#TODO(MHC) - 1.  Setup backup to rsync to the same dir for each week
+#            2.  Setup backup to rsync to a new dir once a week
+#            2a. Copy it from the previous week first before rsyncing any changes.
+#            2b. Make all these frequencies configurable.
+#            3.  Setup purge of old backups when they meet a threshold
 
 # === CONFIGURATION ===
 RETENTION_DAYS = 7
 DEBUG=False
-BACKUP_ROOT_DIR = "/disk01"
-BACKUP_BASE = f"{BACKUP_ROOT_DIR}/backups"
-# EXCLUDES = [f"{BACKUP_ROOT_DIR}",  #This could be an NFS mount so skip the whole thing
-#             "/proc/*",
-#             "/sys/*",
-#             "/dev/*",
-#             "/run/*",
-#             "/mnt/*",
-#             "/media/*",
-#             "/lost+found",
-#             "/tmp/*",
-#             "/var/tmp/*",
-#             "/swapfile",
-#             "/afs",
-#             "/var/cache/*",
-#             "/var/log/*",
-#             "/home/*/.cache",
-#             "/home/*/.vscode-server/*"]
-
 BACKUP_ROOT_DIR = "/disk01"
 BACKUP_BASE = f"{BACKUP_ROOT_DIR}/backups"
 EXCLUDES = [
