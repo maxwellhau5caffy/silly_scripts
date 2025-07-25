@@ -27,7 +27,8 @@ Copy this script to the root directory where you want to store your hosts' backu
 
 ## Example Backup Tree
 
-```bash
+.. code-block:: bash
+
    myUser@hostname:/disk01/backups $ tree -L 2
    .
    ├── backup_host.py
@@ -45,15 +46,16 @@ Copy this script to the root directory where you want to store your hosts' backu
 
 1. Ensure Python 3 is installed.
 2. Make the script executable:
+   .. code-block:: bash
 
-   ```bash
-   chmod +x backup_host.py
+      chmod +x backup_host.py
 3. Setup a cron job to run your backup
+   .. code-block:: bash
 
-   ```bash
    #Every Day at 3am
    0 3 * * * /disk01/backups/backup_host.py
 
 4. Or run manually
-   ```bash
+   .. code-block:: bash
+
    cd /disk01/backups; sudo python backup_hosts.py;
