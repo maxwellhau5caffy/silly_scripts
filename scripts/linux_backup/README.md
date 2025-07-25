@@ -28,7 +28,7 @@ Before using the script, modify the following variables to fit your system:
 
 Copy this script to the root directory where you want to store your hosts' backups. It is assumed that this will be saved to an off-host location meaning NFS mount or other type of share. 
 
-#### Example Backup Tree
+### Example Backup Tree
 
 ```
    myUser@hostname:/disk01/backups $ tree -L 2
@@ -44,7 +44,7 @@ Copy this script to the root directory where you want to store your hosts' backu
 
    7 directories, 2 files
 
-:Usage:
+## Usage:
 
 1. Ensure Python 3 is installed.
 2. Make the script executable:
