@@ -52,10 +52,10 @@ Copy this script to the root directory where you want to store your hosts' backu
 3. Setup a cron job to run your backup
    .. code-block:: bash
 
-   #Every Day at 3am
-   0 3 * * * /disk01/backups/backup_host.py
+      #Every Day at 3am
+      0 3 * * * /disk01/backups/backup_host.py
 
 4. Or run manually
-   .. code-block:: bash
+    .. code-block:: bash
 
-   cd /disk01/backups; sudo python backup_hosts.py;
+       cd /disk01/backups; sudo python backup_hosts.py;
