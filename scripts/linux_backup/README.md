@@ -61,5 +61,5 @@ Copy this script to the root directory where you want to store your hosts' backu
    ```
 4. Or run manually
    ```
-       cd /disk01/backups; sudo python backup_hosts.py;
+       cd /disk01/backups; sudo python backup_host.py;
    ```
