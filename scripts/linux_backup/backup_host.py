@@ -30,6 +30,8 @@ EXCLUDES = [
     "/afs",
     "/var/cache/*",
     "/var/log/*",
+    "/var/lib/docker/", #We can pull these again later.
+
 
     # User-level cache and temp data
     "/home/*/.cache",
@@ -147,6 +149,7 @@ def run_backup():
         progress_line=""
         rsync_path_line=""
         last_rsync_path_line=""
+        catch_all_line=""
 
         #Begin printing to console
         for line in process.stdout:
@@ -156,26 +159,40 @@ def run_backup():
             
             #Rip off trailing whitespace and newline
             line = line.strip()
-            
-            #Crude filepath check
-            split_line = line.split("/")
 
             # Categorize and update line content first
             if "kB/s" in line or "MB/s" in line or "xfr#" in line:
                 progress_line = line
-            elif "." in split_line[-1]: #check the last index if it has a file extension.
-                rsync_path_line = line
+            elif os.path.exists("/"+line): 
+                rsync_path_line = "/" + line
                 if DEBUG and (line not in last_rsync_path_line):#Only log new lines to logfile
                     last_rsync_path_line = line
                     logging.debug(f"/{line}")
+            else: #assume error
+                logging.warning(line)
+                catch_all_line = line
+
+            '''TODO(MHC) - Figure out how to capture error lines liek "operation not supported"
+            user@host:~ $ sudo python /disk01/backups/backup_host.py
+            ========== Backup job started on Jul 25 2025 at 22:13 ==========
+            Starting backup for hostname to /disk01/backups/hostname/hostname-W30-2025
+            Transferred(b)   Percent   Speed        ETA       Transfer Info
+
+            8,050   0%    0.00kB/s    0:01:02 (xfr#2, to-chk=950/128437)rsync: [generator] set_acl: sys_acl_set_file(var/lib/tpm2-tss/system/keystore, ACL_TYPE_DEFAULT): Operation not supported8,050   0%    0.00kB/s    0:01:02 (xfr#2, to-chk=950/128437)rsync: [generator] set_acl: sys_acl_set_file(var/lib/tpm2-tss/system/keystore, ACL_TYPE_DEFAULT): Operation not supported7,799,933   0%   99.97kB/s    0:01:16 (xfr#199, to-chk=145/128437)
+            11,587,638   0%  147.55kB/s    0:01:16 (xfr#200, to-chk=144/128437)
+            15,376,221   0%  194.49kB/s    0:01:17 (xfr#201, to-chk=143/128437)
+            19,168,571   0%  240.99kB/s    0:01:17 (xfr#202, to-chk=142/128437)
+
+            
+            '''
 
             # Move cursor up NUM_LINES
             sys.stdout.write(f'\033[{NUM_LINES}F')  # Move up to start of reserved area
 
             # Print each line, clearing the previous content. !!MUST MATCH NUM_LINES!!
-            sys.stdout.write('\033[K' + progress_line + '\n')  # Clear + write progress line
-            sys.stdout.write('\033[K' + rsync_path_line + '\n')  # Clear + write path line
-            sys.stdout.write('\033[K' + '\n')  # Clear + write path line
+            sys.stdout.write('\033[K' + "Last Status Msg: " + catch_all_line + '\n')  # Clear + write path line
+            sys.stdout.write('\033[K' + "Status: " + progress_line + '\n')  # Clear + write progress line
+            sys.stdout.write('\033[K' + "Last File: " + rsync_path_line + '\n')  # Clear + write path line
 
             sys.stdout.flush()
 
