@@ -2,14 +2,11 @@
 import os, sys, subprocess, datetime, logging
 from pathlib import Path
 
-#TODO(MHC) - 1.  Setup backup to rsync to the same dir for each week
-#            2.  Setup backup to rsync to a new dir once a week
-#            2a. Copy it from the previous week first before rsyncing any changes.
+#TODO(MHC) - 
 #            2b. Make all these frequencies configurable.
-#            3.  Setup purge of old backups when they meet a threshold
 
 # === CONFIGURATION ===
-RETENTION_DAYS = 7
+RETENTION_DAYS = 30*6 #6 months
 DEBUG=False
 BACKUP_ROOT_DIR = "/disk01"
 BACKUP_BASE = f"{BACKUP_ROOT_DIR}/backups"
@@ -94,11 +91,51 @@ def get_dir_level(path, max_level=6):
     return os.sep.join(parts[:max_level])
 
 def run_backup():
-    today = datetime.date.today().isoformat()
-    backup_dir = os.path.join(BACKUP_BASE, hostname, f"{hostname}-{today}")
-    os.makedirs(backup_dir, exist_ok=True)
-    log(f"Starting backup for {hostname} to {backup_dir}")
+    
+    # Daily Backup
+    # today = datetime.date.today().isoformat()
+    # backup_dir = os.path.join(BACKUP_BASE, hostname, f"{hostname}-{today}")
+    
+    # Weekly backup @ frequency of cron job. Reduces initial copy time.
+    today = datetime.date.today()
+    year, week, _ = today.isocalendar()  # (year, week number, weekday)
+    hostname = os.uname().nodename
+    #Ex: backup_dir = '/disk01/backups/hostname/hostname-W30-2025'
+    backup_dir = os.path.join(BACKUP_BASE, hostname, f"{hostname}-W{week:02d}-{year}")
 
+    #Is this a new week?
+    if not os.path.exists(backup_dir):
+        #For efficiency, lets copy last week's backup, then rsync.
+        # First, what week is it, then go back until we got the most recent backup.
+
+        # Ex: current_week_backup_name = 'hostname-W30-2025'
+        current_week_backup_name = backup_dir.split('/')[-1]
+        attempts = 10
+        while attempts > 0: #Loop until we find a backup to copy from or we run out of attempts
+            hostname, current_backup_week, current_backup_year = current_week_backup_name.split('-')
+            if current_backup_week == "W01": #Rollever condition
+                last_backup_week   = "W52"
+                last_backup_year   = str(int(current_backup_year)-1)
+            else:
+                last_backup_week = str(int(current_backup_week[1:])-1)
+                last_backup_year = current_backup_year
+
+            #Put it all back together, just week-1 or week=52 + year-1 if rolleover condition
+            last_backup_dir = os.path.join(BACKUP_BASE, hostname, f"{hostname}-W{last_backup_week}-{last_backup_year}")
+            
+            if os.path.exists(last_backup_dir):  
+                #Only copy if the directory exists.  
+                import shutil
+                shutil.copytree(last_backup_dir, backup_dir, copy_function=shutil.copy2, dirs_exist_ok=True)
+                break #Success, break out of the loop
+            else:
+                attempts = attempts - 1
+                current_week_backup_name = last_backup_dir.split('/')[-1]
+                log(f"Weekly backup was missed: {current_week_backup_name}")
+                log(f"Going back one more week. Attempts left: {attempts}")
+
+
+    log(f"Starting backup for {hostname} to {backup_dir}")
     exclude_args = sum([["--exclude", path] for path in EXCLUDES], [])
     rsync_cmd = ["rsync", "-aAXv", "--info=progress2,stats", "--no-xattrs", "/", backup_dir] + exclude_args
 
@@ -106,6 +143,9 @@ def run_backup():
         process = subprocess.Popen(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         
         #Reserve lines for the console
+        # Static header for progress line
+        print("Transferred(b)   Percent   Speed        ETA       Transfer Info")
+
         NUM_LINES=3
         print("\n"*NUM_LINES)
 
@@ -113,11 +153,14 @@ def run_backup():
         progress_line=""
         rsync_path_line=""
         last_rsync_path_line=""
-        error_line=""
+
+        #Begin printing to console
         for line in process.stdout:
             #Examples:
             #  35,243,536   0%  223.03kB/s    0:02:34 (xfr#80, ir-chk=1002/82824)
-            #  /usr/path/file.something
+            #  /rootdir/path/to/file.extension
+            
+            #Rip off trailing whitespace and newline
             line = line.strip()
             
             #Crude filepath check
@@ -131,8 +174,6 @@ def run_backup():
                 if DEBUG and (line not in last_rsync_path_line):#Only log new lines to logfile
                     last_rsync_path_line = line
                     logging.debug(f"/{line}")
-            elif "Error" in line or "Bad Message" in line:
-                error_line = line
 
             # Move cursor up NUM_LINES
             sys.stdout.write(f'\033[{NUM_LINES}F')  # Move up to start of reserved area
@@ -140,7 +181,7 @@ def run_backup():
             # Print each line, clearing the previous content. !!MUST MATCH NUM_LINES!!
             sys.stdout.write('\033[K' + progress_line + '\n')  # Clear + write progress line
             sys.stdout.write('\033[K' + rsync_path_line + '\n')  # Clear + write path line
-            sys.stdout.write('\033[K' + error_line + '\n')  # Clear + write path line
+            sys.stdout.write('\033[K' + '\n')  # Clear + write path line
 
             sys.stdout.flush()
 
@@ -168,13 +209,15 @@ def purge_old_backups():
 
 def main():
     today = datetime.date.today().strftime("%b %d %Y")
-    now = datetime.datetime.now().strftime("%H:%M")
-    log(f"\n\n========== Backup job started on {today} at {now} ==========")
+    start = datetime.datetime.now().strftime("%H:%M")
+    start_time = datetime.datetime.now()
+    log(f"\n\n========== Backup job started on {today} at {start} ==========")
     run_backup()
     purge_old_backups()
     today = datetime.date.today().strftime("%b %d %Y")
     now = datetime.datetime.now().strftime("%H:%M")
-    log(f"========== Backup job finished on {today} at {now} =========\n\n")
+    finish_time = datetime.datetime.now()
+    log(f"========== Backup job finished on {today} at {now}. Elapsed: {finish_time-start_time}=========\n\n")
 
 if __name__ == "__main__":
     main()
