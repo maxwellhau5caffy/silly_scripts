@@ -190,16 +190,7 @@ def run_backup():
 
 def purge_old_backups():
     log(f"Purging backups older than {RETENTION_DAYS} days...")
-    host_dir = Path(BACKUP_BASE) / hostname
-    if not host_dir.exists():
-        return
-    for folder in host_dir.iterdir():
-        if folder.is_dir() and folder.name.startswith(hostname + "-"):
-            mtime = folder.stat().st_mtime
-            age_days = (datetime.datetime.now() - datetime.datetime.fromtimestamp(mtime)).days
-            if age_days > RETENTION_DAYS:
-                log(f"Removing old backup: {folder} (Age: {age_days} days)")
-                subprocess.run(["rm", "-rf", str(folder)])
+    #TODO(MHC) - Do this part.
 
 def main():
     today = datetime.date.today().strftime("%b %d %Y")
