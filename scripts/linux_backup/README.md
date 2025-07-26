@@ -37,18 +37,31 @@ It is assumed that this will be saved to an off-host location meaning NFS mount 
 ### Example Backup Tree
 
 ```bash
-   myUser@hostname:/disk01/backups $ tree -L 2
+   user@hostname:/disk01/backups $ tree -L 2
    .
    ├── backup_host.py
    ├── hostname
-   │   └── hostname-2025-07-25
+   │   ├── hostname-W26-2025
+   │   ├── hostname-W27-2025
+   │   ├── hostname-W28-2025
+   │   ├── hostname-W29-2025
+   │   └── hostname-W30-2025
    ├── hostname2
-   │   └── hostname2-2025-07-25
+   │   ├── hostname2-W26-2025
+   │   ├── hostname2-W27-2025
+   │   ├── hostname2-W28-2025
+   │   ├── hostname2-W29-2025
+   │   └── hostname2-W30-2025
    ├── hostname3
-   │   └── hostname3-2025-07-25
+   │   ├── hostname3-W26-2025
+   │   ├── hostname3-W27-2025
+   │   ├── hostname3-W28-2025
+   │   ├── hostname3-W29-2025
+   │   └── hostname3-W30-2025
    └── restore_node.sh
 
-   7 directories, 2 files
+7 directories, 2 files
+
 ```
 
 ## Usage:
