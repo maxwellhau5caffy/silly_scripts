@@ -11,7 +11,7 @@ This repository contains scripts for `backup` and `restore` operations for Linux
 ### Restore Script - restore_host.sh:
 
    **DISCLAIMER** This recovery script has not been used yet. Only testing done was for the menu.
-   
+
    This bash script performs a full restore of a Linux system using `rsync`, from all files backed up, while providing menu options to navigate to the correct backup, dry-running the process, followed by a transfer of files to the new host. 
 
 ## Features
@@ -36,7 +36,7 @@ It is assumed that this will be saved to an off-host location meaning NFS mount 
 
 ### Example Backup Tree
 
-```
+```bash
    myUser@hostname:/disk01/backups $ tree -L 2
    .
    ├── backup_host.py
@@ -55,15 +55,37 @@ It is assumed that this will be saved to an off-host location meaning NFS mount 
 
 1. Ensure Python 3 is installed.
 2. Make the script executable:
-   ```
+   ```bash
       chmod +x backup_host.py
    ```
 3. Setup a cron job to run your backup
-   ```
+   ```bash
+   user@hostname:~/repos/silly_scripts (silly_scripts:main) $ sudo crontab -e
+      #┌───────────── Minute (0 - 59)
+      #│ ┌───────────── Hour (0 - 23)
+      #│ │ ┌───────────── Day of Month (1 - 31)
+      #│ │ │ ┌───────────── Month (1 - 12)
+      #│ │ │ │ ┌───────────── Day of Week (0 - 7) (Sunday=0 or 7)
+      #│ │ │ │ │
+      #│ │ │ │ │
+      #* * * * *  command_to_execute
+       0 3 * * * /disk01/backups/backup_host.py
       #Every Day at 3am
-      0 3 * * * /disk01/backups/backup_host.py
    ```
 4. Or run manually
-   ```
-       cd /disk01/backups; sudo python backup_host.py;
+   ```bash
+      cd /disk01/backups; 
+      user@hostname:/disk01/backups $ sudo python backup_host.py
+
+      ========== Backup job started on Jul 26 2025 at 03:26 ==========
+      Starting backup for hostname to /disk01/backups/hostname/hostname-W30-2025
+      Transferred(b)   Percent   Speed        ETA       Transfer Info
+
+      0   0%    0.00kB/s    0:00:00 (xfr#1, to-chk=0/79305)
+      rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1338) [sender=3.2.7]
+
+      Backup finished with errors. Exit code: 23
+      Purging backups older than 180 days...
+      ========== Backup job finished on Jul 26 2025 at 03:27. Elapsed: 0:00:23.368717=========
+
    ```

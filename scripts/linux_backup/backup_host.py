@@ -91,11 +91,6 @@ def get_dir_level(path, max_level=6):
     return os.sep.join(parts[:max_level])
 
 def run_backup():
-    
-    # Daily Backup
-    # today = datetime.date.today().isoformat()
-    # backup_dir = os.path.join(BACKUP_BASE, hostname, f"{hostname}-{today}")
-    
     # Weekly backup @ frequency of cron job. Reduces initial copy time.
     today = datetime.date.today()
     year, week, _ = today.isocalendar()  # (year, week number, weekday)
@@ -133,7 +128,6 @@ def run_backup():
                 current_week_backup_name = last_backup_dir.split('/')[-1]
                 log(f"Weekly backup was missed: {current_week_backup_name}")
                 log(f"Going back one more week. Attempts left: {attempts}")
-
 
     log(f"Starting backup for {hostname} to {backup_dir}")
     exclude_args = sum([["--exclude", path] for path in EXCLUDES], [])
