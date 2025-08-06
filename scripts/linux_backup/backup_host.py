@@ -133,7 +133,7 @@ def run_backup():
 
     log(f"Starting backup for {hostname} to {backup_dir}")
     exclude_args = sum([["--exclude", path] for path in EXCLUDES], [])
-    rsync_cmd = ["rsync", "-aAXv", "--info=progress2,stats", "--no-xattrs", "/", backup_dir] + exclude_args
+    rsync_cmd = ["rsync", "-aAXv", "--info=progress2,stats", "--one-file-system", "--no-xattrs", "/", backup_dir] + exclude_args
 
     try:
         process = subprocess.Popen(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -199,13 +199,17 @@ def main():
     today = datetime.date.today().strftime("%b %d %Y")
     start = datetime.datetime.now().strftime("%H:%M")
     start_time = datetime.datetime.now()
-    log(f"\n\n========== Backup job started on {today} at {start} ==========")
+    log(f"")
+    log(f"")
+    log(f"========== Backup job started on {today} at {start} ==========")
     run_backup()
     purge_old_backups()
     today = datetime.date.today().strftime("%b %d %Y")
     now = datetime.datetime.now().strftime("%H:%M")
     finish_time = datetime.datetime.now()
     log(f"========== Backup job finished on {today} at {now}. Elapsed: {finish_time-start_time}=========\n\n")
+    log(f"")
+    log(f"")
 
 if __name__ == "__main__":
     main()
