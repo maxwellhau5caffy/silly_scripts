@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+####################
+#
+# This install is setup for Fedora Linux which use DNF package manager.
+#
+####################
+import os, time
+import subprocess
+from pathlib import Path
+import ipaddress
+
+WG_DIR = Path("/etc/wireguard")
+SERVER_PRIV = WG_DIR / "server_private.key"
+SERVER_PUB = WG_DIR / "server_public.key"
+CLIENT_PRIV = WG_DIR / "client1_private.key"
+CLIENT_PUB = WG_DIR / "client1_public.key"
+WG_CONF = WG_DIR / "wg0.conf"
+CLIENT_CONF = WG_DIR / "client1.conf"
+CLIENT_PNG = WG_DIR / "client1.png"
+
+def run(cmd, capture=False):
+    if capture:
+        return subprocess.check_output(cmd, shell=True, text=True).strip()
+    subprocess.check_call(cmd, shell=True)
+
+def ensure_dir():
+    WG_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(WG_DIR, 0o700)
+
+def install_packages():
+    print("[*] Installing packages...")
+    run("dnf install -y wireguard-tools qrencode firewalld curl iproute")
+
+def gen_keys():
+    print("[*] Generating keys...")
+    if not SERVER_PRIV.exists():
+        run(f"wg genkey | tee {SERVER_PRIV} | wg pubkey > {SERVER_PUB}")
+        os.chmod(SERVER_PRIV, 0o600)
+    if not CLIENT_PRIV.exists():
+        run(f"wg genkey | tee {CLIENT_PRIV} | wg pubkey > {CLIENT_PUB}")
+        os.chmod(CLIENT_PRIV, 0o600)
+
+def read_file(path):
+    return path.read_text().strip()
+
+def write_server_conf(server_ip, subnet, client_ip):
+    print("[*] Writing server config...")
+    server_priv = read_file(SERVER_PRIV)
+    client_pub = read_file(CLIENT_PUB)
+
+    conf = f"""[Interface]
+Address = {server_ip}/{subnet.prefixlen}
+ListenPort = 51820
+PrivateKey = {server_priv}
+
+[Peer]
+PublicKey = {client_pub}
+AllowedIPs = {client_ip}/32
+"""
+    WG_CONF.write_text(conf)
+    os.chmod(WG_CONF, 0o600)
+
+def write_client_conf(endpoint, client_ip, server_ip, subnet):
+    print("[*] Writing client config...")
+    client_priv = read_file(CLIENT_PRIV)
+    server_pub = read_file(SERVER_PUB)
+
+    conf = f"""[Interface]
+PrivateKey = {client_priv}
+Address = {client_ip}/{subnet.prefixlen}
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = {server_pub}
+Endpoint = {endpoint}:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
+"""
+    CLIENT_CONF.write_text(conf)
+    os.chmod(CLIENT_CONF, 0o600)
+
+def make_qr():
+    print("[*] Generating QR code...")
+    run(f"qrencode -o {CLIENT_PNG} -t PNG -s 10 < {CLIENT_CONF}")
+
+def show_qr_console():
+    print("[*] Printing QR code to console...\n")
+    run(f"qrencode -t ANSIUTF8 < {CLIENT_CONF}")    
+
+def enable_forwarding():
+    print("[*] Enabling IPv4 forwarding...")
+    sysctl_conf = Path("/etc/sysctl.d/99-wireguard.conf")
+    sysctl_conf.write_text("net.ipv4.ip_forward = 1\n")
+    run("sysctl --system")
+
+def setup_firewalld(pub_iface):
+    print("[*] Configuring firewalld...")
+    run("systemctl enable --now firewalld")
+    run("firewall-cmd --permanent --add-port=51820/udp")
+    run("firewall-cmd --permanent --add-masquerade")
+    run(f"firewall-cmd --permanent --zone=public --change-interface={pub_iface}")
+    run("firewall-cmd --permanent --new-zone=wg || true")
+    run("firewall-cmd --permanent --zone=wg --add-interface=wg0 || true")
+    run("firewall-cmd --reload")
+
+def bring_up():
+    print("[*] Enabling WireGuard service...")
+    run("systemctl enable --now wg-quick@wg0")
+
+def bring_down():
+    print("[*] Stopping WireGuard service...")
+    run("systemctl stop wg-quick@wg0")
+
+def check_running():
+    try:
+        status = run("systemctl is-active wg-quick@wg0", capture=True)
+        if status == "active":
+            print("[!] wg-quick@wg0 is already running!")
+            choice = input("Do you want to stop it before continuing? [y/N]: ").strip().lower()
+            if choice == "y":
+                bring_down()
+                time.sleep(5) #give it a sec to stop
+            else:
+                print("Aborting to avoid conflicts.")
+                exit(1)
+    except subprocess.CalledProcessError:
+        # service not running, safe
+        pass
+
+
+def detect_external_ip():
+    try:
+        return run("curl -s ifconfig.me", capture=True)
+    except subprocess.CalledProcessError:
+        return None
+
+def choose_interface():
+    print("[*] Detecting interfaces with IP addresses...")
+    output = run("ip -o -4 addr show", capture=True)
+    ifaces = []
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        name = parts[1]
+        ip_cidr = parts[3]
+        if name.startswith("lo") or name.startswith("wg"):
+            continue
+        ifaces.append((name, ip_cidr))
+
+    if not ifaces:
+        return input("No interfaces detected. Enter interface manually: ").strip()
+
+    print("Available interfaces:")
+    for i, (iface, ip) in enumerate(ifaces, 1):
+        print(f"  {i}) {iface} ({ip})")
+
+    while True:
+        choice = input(f"Select interface [1-{len(ifaces)}]: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(ifaces):
+            return ifaces[int(choice) - 1][0]
+        print("Invalid choice, try again.")
+
+def choose_subnet():
+    while True:
+        cidr = input("Enter VPN subnet (CIDR), e.g. 10.0.10.0/24: ").strip()
+        try:
+            subnet = ipaddress.ip_network(cidr, strict=False)
+            hosts = list(subnet.hosts())
+            if len(hosts) < 2:
+                print("Subnet too small, need at least 2 addresses.")
+                continue
+            return subnet, str(hosts[0]), str(hosts[1])  # server = first, client = second
+        except ValueError as e:
+            print(f"Invalid subnet: {e}")
+
+def main():
+    check_running()
+    ensure_dir()
+    install_packages()
+    gen_keys()
+
+    endpoint = detect_external_ip()
+    if not endpoint:
+        endpoint = input("Could not auto-detect external IP. Enter manually: ").strip()
+    else:
+        print(f"[*] Detected external IP: {endpoint}")
+
+    pub_iface = choose_interface()
+    print(f"[*] Selected interface: {pub_iface}")
+
+    subnet, server_ip, client_ip = choose_subnet()
+    print(f"[*] Using subnet {subnet}, server IP {server_ip}, client IP {client_ip}")
+
+    write_server_conf(server_ip, subnet, client_ip)
+    write_client_conf(endpoint, client_ip, server_ip, subnet)
+    make_qr()
+    enable_forwarding()
+    setup_firewalld(pub_iface)
+
+    print("\n[+] Done!")
+    print(f"Server config location: {WG_CONF}")
+    print(f"Client config location: {CLIENT_CONF}")
+    print(f"Client QR PNG location: {CLIENT_PNG}")
+    print(f"Copying {CLIENT_CONF} & {CLIENT_CONF} to current working directory.")
+    run(f"cp {CLIENT_CONF} .")
+    run(f"cp {CLIENT_PNG} .")
+    print("Scan client1.png with WireGuard mobile app or import client1.conf.")
+    print()
+    choice = input("Would you like to show the quick connect QR code now? [y/N]")
+    if choice == "y":
+        show_qr_console()
+
+    choice = input("Do you want to enable/start the service now? [y/N]: ").strip()
+    if choice == "y":
+        bring_up()
+
+    print("\n\n ======== WireGuard installation & setup complete ======== \n\n")
+
+if __name__ == "__main__":
+    main()
