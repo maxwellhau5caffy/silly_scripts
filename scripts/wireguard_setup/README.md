@@ -33,7 +33,7 @@ This Python script automates the installation and setup of a WireGuard VPN serve
 - Generates a client QR code (`client1.png`) for easy mobile app import.
 - Enables IPv4 forwarding for VPN traffic.
 - Configures `firewalld`:
-  - Opens UDP port 51820
+  - Opens UDP port (Default 51820)
   - Sets up masquerading
   - Creates a dedicated `wg` zone for WireGuard interface
 - Detects public IP automatically or allows manual input.

@@ -43,14 +43,14 @@ def gen_keys():
 def read_file(path):
     return path.read_text().strip()
 
-def write_server_conf(server_ip, subnet, client_ip):
+def write_server_conf(server_ip, subnet, client_ip, port):
     print("[*] Writing server config...")
     server_priv = read_file(SERVER_PRIV)
     client_pub = read_file(CLIENT_PUB)
 
     conf = f"""[Interface]
 Address = {server_ip}/{subnet.prefixlen}
-ListenPort = 51820
+ListenPort = {port}
 PrivateKey = {server_priv}
 
 [Peer]
@@ -60,7 +60,7 @@ AllowedIPs = {client_ip}/32
     WG_CONF.write_text(conf)
     os.chmod(WG_CONF, 0o600)
 
-def write_client_conf(endpoint, client_ip, server_ip, subnet):
+def write_client_conf(endpoint, client_ip, server_ip, subnet, port):
     print("[*] Writing client config...")
     client_priv = read_file(CLIENT_PRIV)
     server_pub = read_file(SERVER_PUB)
@@ -72,7 +72,7 @@ DNS = 1.1.1.1
 
 [Peer]
 PublicKey = {server_pub}
-Endpoint = {endpoint}:51820
+Endpoint = {endpoint}:{port}
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25
 """
@@ -93,10 +93,10 @@ def enable_forwarding():
     sysctl_conf.write_text("net.ipv4.ip_forward = 1\n")
     run("sysctl --system")
 
-def setup_firewalld(pub_iface):
+def setup_firewalld(pub_iface, port):
     print("[*] Configuring firewalld...")
     run("systemctl enable --now firewalld")
-    run("firewall-cmd --permanent --add-port=51820/udp")
+    run(f"firewall-cmd --permanent --add-port={port}/udp")
     run("firewall-cmd --permanent --add-masquerade")
     run(f"firewall-cmd --permanent --zone=public --change-interface={pub_iface}")
     run("firewall-cmd --permanent --new-zone=wg || true")
@@ -161,6 +161,17 @@ def choose_interface():
             return ifaces[int(choice) - 1][0]
         print("Invalid choice, try again.")
 
+def choose_UDP_port():
+    while True:
+        port = input("Enter a UDP port for your WG network (Default 51820): ").strip()
+        if not port:
+            return 51820  # default port
+        if port.isdigit():
+            port_num = int(port)
+            if 1 <= port_num <= 65535:
+                return port_num
+        print("Invalid port. Enter a number between 1 and 65535.")
+
 def choose_subnet():
     while True:
         cidr = input("Enter VPN subnet (CIDR), e.g. 10.0.10.0/24: ").strip()
@@ -191,12 +202,15 @@ def main():
 
     subnet, server_ip, client_ip = choose_subnet()
     print(f"[*] Using subnet {subnet}, server IP {server_ip}, client IP {client_ip}")
+    
+    port = choose_UDP_port()
+    print(f"[*] Using port {port}")
 
-    write_server_conf(server_ip, subnet, client_ip)
-    write_client_conf(endpoint, client_ip, server_ip, subnet)
+    write_server_conf(server_ip, subnet, client_ip, port)
+    write_client_conf(endpoint, client_ip, server_ip, subnet, port)
     make_qr()
     enable_forwarding()
-    setup_firewalld(pub_iface)
+    setup_firewalld(pub_iface, port)
 
     print("\n[+] Done!")
     print(f"Server config location: {WG_CONF}")
