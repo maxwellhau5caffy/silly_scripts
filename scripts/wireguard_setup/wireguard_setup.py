@@ -19,6 +19,7 @@ CLIENT_CONF = WG_DIR / "client1.conf"
 CLIENT_PNG = WG_DIR / "client1.png"
 
 def run(cmd, capture=False):
+    print("[~] " + cmd)
     if capture:
         return subprocess.check_output(cmd, shell=True, text=True).strip()
     subprocess.check_call(cmd, shell=True)
@@ -43,7 +44,7 @@ def gen_keys():
 def read_file(path):
     return path.read_text().strip()
 
-def write_server_conf(server_ip, subnet, client_ip, port):
+def write_server_conf(pub_iface, server_ip, subnet, client_ip, port):
     print("[*] Writing server config...")
     server_priv = read_file(SERVER_PRIV)
     client_pub = read_file(CLIENT_PUB)
@@ -52,6 +53,13 @@ def write_server_conf(server_ip, subnet, client_ip, port):
 Address = {server_ip}/{subnet.prefixlen}
 ListenPort = {port}
 PrivateKey = {server_priv}
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT
+PostUp = iptables -A FORWARD -o wg0 -j ACCEPT
+PostUp = iptables -t nat -A POSTROUTING -o {pub_iface} -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT
+PostDown = iptables -D FORWARD -o wg0 -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -o {pub_iface} -j MASQUERADE
 
 [Peer]
 PublicKey = {client_pub}
@@ -96,11 +104,25 @@ def enable_forwarding():
 def setup_firewalld(pub_iface, port):
     print("[*] Configuring firewalld...")
     run("systemctl enable --now firewalld")
+
+    # Lets start fresh. Delete any existing wg firewall zones and policies.
+    #TODO - This is proving to be sticky.
+    #delete_firewall_zone_if_exists_and_recreate("wg")
+
+    # Allow the specified UDP port.
     run(f"firewall-cmd --permanent --add-port={port}/udp")
+
+    # Enable NAT masquerading
     run("firewall-cmd --permanent --add-masquerade")
+
+    # Assign the public interface to the public zone
     run(f"firewall-cmd --permanent --zone=public --change-interface={pub_iface}")
+
+    # Create and assign a WireGuard zone
     run("firewall-cmd --permanent --new-zone=wg || true")
     run("firewall-cmd --permanent --zone=wg --add-interface=wg0 || true")
+
+    # Reload firewalld to apply changes
     run("firewall-cmd --reload")
 
 def bring_up():
@@ -116,10 +138,11 @@ def check_running():
         status = run("systemctl is-active wg-quick@wg0", capture=True)
         if status == "active":
             print("[!] wg-quick@wg0 is already running!")
-            choice = input("Do you want to stop it before continuing? [y/N]: ").strip().lower()
+            
+            print()
+            choice = input(">>> Do you want to stop it before continuing? [y/N]: ").strip().lower()
             if choice == "y":
                 bring_down()
-                time.sleep(5) #give it a sec to stop
             else:
                 print("Aborting to avoid conflicts.")
                 exit(1)
@@ -134,6 +157,46 @@ def detect_external_ip():
     except subprocess.CalledProcessError:
         return None
 
+def get_allowed_ip(subnet):
+    # Convert subnet to a network object
+    net = ipaddress.ip_network(subnet, strict=False)
+    # Return the second IP in the network (.2)
+    return str(net[2]) + '/32'
+
+def delete_firewall_policy_if_exists(policy_name):
+    """Deletes a firewall policy if it already exists."""
+    try:
+        # Check if the policy exists
+        output = subprocess.check_output(f"sudo firewall-cmd --permanent --list-all-policies", shell=True, text=True)
+        existing_policies = output.strip().split()
+        if policy_name in existing_policies:
+            print(f"[*] Deleting existing firewall policy: {policy_name}")
+            run(f"sudo firewall-cmd --permanent --delete-policy {policy_name}")
+    except subprocess.CalledProcessError as e:
+        print(f"[!] Error checking existing policies: {e}")
+
+def setup_docker_firewall_rules():
+    print("[*] Setting up firewall rules to allow WireGuard and Docker network traffic.")
+
+    print("[*] Allow WireGuard to use all ports to access docker services running in the docker zone.")
+    run(f"sudo firewall-cmd --zone=wg --add-port=0-65535/udp --permanent")
+    run(f"sudo firewall-cmd --zone=wg --add-port=0-65535/tcp --permanent")
+
+    # Define policies
+    policies = [
+        # Key     Value        ,  Key        Value,    Key       Value
+        {"name": "wg-to-docker", "ingress": "wg",     "egress": "docker"},
+        {"name": "docker-to-wg", "ingress": "docker", "egress": "wg"}
+    ]
+
+    for p in policies:
+        delete_firewall_policy_if_exists(p["name"])
+        print(f"[*] Create firewall policy: {p['name']}")
+        run(f"sudo firewall-cmd --permanent --new-policy {p['name']}")
+        run(f"sudo firewall-cmd --permanent --policy {p['name']} --set-target ACCEPT")
+        run(f"sudo firewall-cmd --permanent --policy {p['name']} --add-ingress-zone {p['ingress']}")
+        run(f"sudo firewall-cmd --permanent --policy {p['name']} --add-egress-zone {p['egress']}")
+
 def choose_interface():
     print("[*] Detecting interfaces with IP addresses...")
     output = run("ip -o -4 addr show", capture=True)
@@ -144,26 +207,30 @@ def choose_interface():
             continue
         name = parts[1]
         ip_cidr = parts[3]
-        if name.startswith("lo") or name.startswith("wg"):
+        #Omit Loopback, wireguard, or docker networks
+        if name.startswith("lo") or name.startswith("wg") or name.startswith("br-") or name.startswith("docker"):
             continue
         ifaces.append((name, ip_cidr))
 
     if not ifaces:
-        return input("No interfaces detected. Enter interface manually: ").strip()
+        print()
+        return input(">>> No interfaces detected. Enter interface manually: ").strip()
 
     print("Available interfaces:")
     for i, (iface, ip) in enumerate(ifaces, 1):
         print(f"  {i}) {iface} ({ip})")
 
     while True:
-        choice = input(f"Select interface [1-{len(ifaces)}]: ").strip()
+        print()
+        choice = input(f">>> Select interface [1-{len(ifaces)}]: ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(ifaces):
             return ifaces[int(choice) - 1][0]
         print("Invalid choice, try again.")
 
 def choose_UDP_port():
     while True:
-        port = input("Enter a UDP port for your WG network (Default 51820): ").strip()
+        print()
+        port = input(">>> Enter a UDP port for your WG network (Press [Enter] to use default: 51820): ").strip()
         if not port:
             return 51820  # default port
         if port.isdigit():
@@ -174,7 +241,8 @@ def choose_UDP_port():
 
 def choose_subnet():
     while True:
-        cidr = input("Enter VPN subnet (CIDR), e.g. 10.0.10.0/24: ").strip()
+        print()
+        cidr = input(">>> Enter your desired VPN subnet (CIDR), e.g. 10.0.10.0/24: ").strip()
         try:
             subnet = ipaddress.ip_network(cidr, strict=False)
             hosts = list(subnet.hosts())
@@ -193,7 +261,8 @@ def main():
 
     endpoint = detect_external_ip()
     if not endpoint:
-        endpoint = input("Could not auto-detect external IP. Enter manually: ").strip()
+        print()
+        endpoint = input(">>> Could not auto-detect external IP. Enter manually: ").strip()
     else:
         print(f"[*] Detected external IP: {endpoint}")
 
@@ -202,32 +271,40 @@ def main():
 
     subnet, server_ip, client_ip = choose_subnet()
     print(f"[*] Using subnet {subnet}, server IP {server_ip}, client IP {client_ip}")
-    
+
     port = choose_UDP_port()
     print(f"[*] Using port {port}")
 
-    write_server_conf(server_ip, subnet, client_ip, port)
+    write_server_conf(pub_iface, server_ip, subnet, client_ip, port)
     write_client_conf(endpoint, client_ip, server_ip, subnet, port)
     make_qr()
     enable_forwarding()
     setup_firewalld(pub_iface, port)
+    print("[+] Done!\n")
 
-    print("\n[+] Done!")
-    print(f"Server config location: {WG_CONF}")
-    print(f"Client config location: {CLIENT_CONF}")
-    print(f"Client QR PNG location: {CLIENT_PNG}")
-    print(f"Copying {CLIENT_CONF} & {CLIENT_CONF} to current working directory.")
-    run(f"cp {CLIENT_CONF} .")
-    run(f"cp {CLIENT_PNG} .")
-    print("Scan client1.png with WireGuard mobile app or import client1.conf.")
     print()
-    choice = input("Would you like to show the quick connect QR code now? [y/N]")
+    choice = input(">>> Would you like to allow traffic between docker containers and your wireguard VPN tunnel? [y/N]")
+    if choice == "y":
+        setup_docker_firewall_rules()
+
+    print()
+    choice = input(">>> Would you like to show the quick connect QR code now? [y/N]")
     if choice == "y":
         show_qr_console()
 
-    choice = input("Do you want to enable/start the service now? [y/N]: ").strip()
+    print()
+    choice = input(">>> Do you want to enable/start the service now? [y/N]: ").strip()
     if choice == "y":
         bring_up()
+
+    print(f"[*] Server config location: {WG_CONF}")
+    print(f"[*] Client config location: {CLIENT_CONF}")
+    print(f"[*] Client QR PNG location: {CLIENT_PNG}")
+    print(f"[*] Copying {CLIENT_CONF} & {CLIENT_CONF} to current working directory.")
+    run(f"cp {CLIENT_CONF} .")
+    run(f"cp {CLIENT_PNG} .")
+    print("[*] Scan client1.png with WireGuard mobile app or import client1.conf.")
+    print("[*] Dont forget to forward the UDP port from your router to your server!")
 
     print("\n\n ======== WireGuard installation & setup complete ======== \n\n")
 
