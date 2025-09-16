@@ -300,7 +300,7 @@ def main():
     print(f"[*] Server config location: {WG_CONF}")
     print(f"[*] Client config location: {CLIENT_CONF}")
     print(f"[*] Client QR PNG location: {CLIENT_PNG}")
-    print(f"[*] Copying {CLIENT_CONF} & {CLIENT_CONF} to current working directory.")
+    print(f"[*] Copying {CLIENT_CONF} & {CLIENT_PNG} to current working directory.")
     run(f"cp {CLIENT_CONF} .")
     run(f"cp {CLIENT_PNG} .")
     print("[*] Scan client1.png with WireGuard mobile app or import client1.conf.")

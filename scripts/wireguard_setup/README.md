@@ -171,7 +171,7 @@ success
 [*] Server config location: /etc/wireguard/wg0.conf
 [*] Client config location: /etc/wireguard/client1.conf
 [*] Client QR PNG location: /etc/wireguard/client1.png
-[*] Copying /etc/wireguard/client1.conf & /etc/wireguard/client1.conf to current working directory.
+[*] Copying /etc/wireguard/client1.conf & /etc/wireguard/client1.png to current working directory.
 [~] cp /etc/wireguard/client1.conf .
 [~] cp /etc/wireguard/client1.png .
 [*] Scan client1.png with WireGuard mobile app or import client1.conf.
