@@ -42,6 +42,11 @@ This Python script automates the installation and setup of a WireGuard VPN serve
 
 ---
 
+## Eventually I'll Get to List
+
+- Uninstaller
+- fix wg0's access to internet while the client is actively connected.
+
 ## Usage
 
 1. Run the script as root:
